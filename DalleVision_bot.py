@@ -6,7 +6,7 @@ import requests
 import json
 
 # Name of files which bot uses (Названия файлов, используемые ботом)
-scores_filename = 'scores.txt' #Scores file (Файл, содержащий количество очков)
+scores_filename = 'scores_test.txt' #Scores file (Файл, содержащий количество очков)
 admins_filename = 'admins.txt' #Administrator list file (Файл, содержащий список администраторов)
 # token_test_filename = 'token_test.txt' Test bot token file (optional) (Файл, содержащий токен тестового бота, не обязательный)
 token_filename = 'token.txt' #Bot token file (Файл, содержащий токен основного бота)
@@ -20,17 +20,13 @@ posts = {}
 administrators = {}
 my_queue = Queue()
 
-def check_admins(get_admins, administrator_list):
-  # Сheck admins list (Проверка администраторов)
-  for admin in get_admins:
-      administrator_list[admin.user.username] = 'admin'
-
 # Function for check new post and future parsing (Функция для проверки нового поста и дальнейшего парсинга)
 async def check_new_post(update: Updater, context: CallbackContext):
   if (update.channel_post) :
     print("It's channel post\n")
   else:
-    return    
+    return
+
 # Function for scoring points (Функция начисления баллов)
 def scoring(points, trash, user, scores_list):
   try:
@@ -38,9 +34,9 @@ def scoring(points, trash, user, scores_list):
     points = int(points.lower().strip(trash))
     # Update or create note for user points (Обновляем или создаем запись для пользователя)
     if user in scores_list:
-        scores_list[user] += points
+      scores_list[user] += points
     else:
-        scores_list[user] = points
+      scores_list[user] = points
     return scores_list
   except (IndexError, ValueError):
     return False
@@ -56,8 +52,8 @@ async def count_points(update: Updater, context: CallbackContext):
     who_reply = update.message.sender_chat.id
   # Whose message has been replied (Чье сообщение было отвечено)
   if (update.message.reply_to_message.from_user.is_bot == False):
-    from_who_reply = update.message.reply_to_message.from_user.id + '@' + update.message.reply_to_message.from_user.username
-  else: from_who_reply = update.message.reply_to_message.sender_chat.id + '@' + update.message.reply_to_message.sender_chat.username
+    from_who_reply = str(update.message.reply_to_message.from_user.id) + '@' + update.message.reply_to_message.from_user.username
+  else: from_who_reply = str(update.message.reply_to_message.sender_chat.id) + '@' + update.message.reply_to_message.sender_chat.username
   # Parse text in reply message (Текст сообщения в ответе)
   message = update.message.text
   # Find increase points message (Поиск сообщения о начислении очков)
@@ -71,14 +67,11 @@ async def count_points(update: Updater, context: CallbackContext):
       else: 
         await update.message.reply_text(f"{from_who_reply} заработал баллов. \nБаланс: {scores[from_who_reply]} баллов!")
         with open(scores_filename, 'w') as f:
-            f.writelines(f"{item},{scores[item]}\n" for item in scores)
+          f.writelines(f"{item},{scores[item]}\n" for item in scores)
     else:
       await update.message.reply_text("Только администраторы могут начислять баллы")
   # Found decrease point message (Поиск сообщения о вычитании очков)
   if ('Читер!' in message):
-    # Add and check admins (Добавление и проверка администраторов)
-    admins = await update.effective_chat.get_administrators()
-    scores = check_admins(admins, administrators)
     # Handling of decrease points message if who_reply in admin list (Обработка сообщения вычитания очков, если пользователь администратор)
     if (who_reply in administrators):
       fstring= 'читер!баллов ' #formatted string for clean 'trash' symbols and leave only points (форматированная строка для последующей очистки сообщения от "мусора")
@@ -88,41 +81,39 @@ async def count_points(update: Updater, context: CallbackContext):
       else: 
         await update.message.reply_text(f"{from_who_reply} наказан и теряет баллы. \nБаланс: {scores[from_who_reply]} баллов!")
         with open(scores_filename, 'w') as f:
-            f.writelines(f"{item},{scores[item]}\n" for item in scores)
+          f.writelines(f"{item},{scores[item]}\n" for item in scores)
     else:
       await update.message.reply_text("Только администраторы могут наказывать читеров")
 
-# Function for postin top users (example, /top <count>)
+# Function for posting top users (example, /top <count>)
 async def top(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
-    try:
-        # args[0] should contain the count of users
-        count = int(context.args[0])
-        if count <= 0:
-            await update.effective_message.reply_text("Укажите количество пользователей (Пример: /top 5) ")
-            return
-        if not scores:
-          await update.message.reply_text("Пока нет участников с баллами.")
-          return
-        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True) # Sorted users by points
-        top_players = sorted_scores[:count]  # Get only 'counts' best users
-
-        message = f"Топ {count} игроков:\n"
-        for i, (username, points) in enumerate(top_players, start=1):
-            message += f"{i}. @{username}: {points} баллов\n"
-        
-        await update.message.reply_text(message)
-
-    except (IndexError, ValueError):
-        await update.effective_message.reply_text("Используйте: /top <количество>")
+  try:
+    # args[0] should contain the count of users
+    count = int(context.args[0])
+    if count <= 0:
+      await update.effective_message.reply_text("Укажите количество пользователей (Пример: /top 5) ")
+      return
+    if not scores:
+      await update.message.reply_text("Пока нет участников с баллами.")
+      return
+    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True) # Sorted users by points
+    top_players = sorted_scores[:count]  # Get only 'counts' best users
+    message = f"Топ {count} игроков:\n"
+    for i, (username, points) in enumerate(top_players, start=1):
+      message += f"{i}. @{username}: {points} баллов\n"
+    await update.message.reply_text(message)
+  except (IndexError, ValueError):
+    await update.effective_message.reply_text("Используйте: /top <количество>")
 
 # Function for postin top users (example, /top <count>)
 async def reset_points(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message.chat.type != "private":
-        return
-    if (update.message.from_user.id in administrators):
-      scores = {}
-      f = open(scores_filename, 'w')
-      f.close()
+  if (update.message.from_user.id in administrators):
+    scores = {}
+    f = open(scores_filename, 'w')
+    f.close()
+    await update.effective_message.reply_text("Все баллы были сброшены")
+  else:
+    await update.effective_message.reply_text("Только администраторы могут сбрасывать баллы")
 
 def main():
   # Get main_bot token from 'token.txt'
@@ -170,10 +161,6 @@ def main():
     with open(admins_filename, 'w+') as f:
       f.writelines(f"{item},{administrators[item]}\n" for item in administrators)
   else: return
-
-  # Get test_bot token from 'token_test.txt'
-  # token_test = open(token_test_filename, "r").readline().rstrip()
-  # application = ApplicationBuilder().token(token_test).build()
 
   # Command /top X
   application.add_handler(CommandHandler("top", top))
