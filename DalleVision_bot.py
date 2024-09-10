@@ -91,7 +91,7 @@ async def top(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
         # args[0] should contain the count of users
         count = int(context.args[0])
         if count < 0:
-            await update.effective_message.reply_text("Укажите пожалуйста натуральное число от 0 до ")
+            await update.effective_message.reply_text("Укажите пожалуйста целое число от 0 до ")
             return
         if not scores:
           await update.message.reply_text("Пока нет участников с баллами.")
