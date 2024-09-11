@@ -1,3 +1,5 @@
+from typing import Optional, Tuple
+from telegram import ChatMember, ChatMemberUpdated, Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, ApplicationBuilder, CallbackContext, ContextTypes, ChatMemberHandler
 from telegram.ext import filters as Filters
 from asyncio import Queue
@@ -52,12 +54,13 @@ async def count_points(update: Updater, context: CallbackContext):
     who_reply = update.message.sender_chat.id
   # Whose message has been replied (Чье сообщение было отвечено)
   if (update.message.reply_to_message.from_user.is_bot == False):
-    from_who_reply = str(update.message.reply_to_message.from_user.id) + '@' + update.message.reply_to_message.from_user.username
-  else: from_who_reply = str(update.message.reply_to_message.sender_chat.id) + '@' + update.message.reply_to_message.sender_chat.username
+    from_who_reply = str(update.message.reply_to_message.from_user.id) + '@' + str(update.message.reply_to_message.from_user.username)
+  else: from_who_reply = str(update.message.reply_to_message.sender_chat.id) + '@' + str(update.message.reply_to_message.sender_chat.username)
   # Parse text in reply message (Текст сообщения в ответе)
   message = update.message.text
+  #Take username for display in message
+  username_from_who_reply = from_who_reply.split('@')[1]
   # Find increase points message (Поиск сообщения о начислении очков)
-  # return
   if ('Верно!' in message):
     # Handling of increase points message if who_reply in admin list (Обработка начисления очков, если пользователь администратор)
     if (who_reply in administrators):
@@ -65,7 +68,7 @@ async def count_points(update: Updater, context: CallbackContext):
       if (scoring(message, fstring, from_who_reply, scores) == False):
         await update.message.reply_text('Ошибка! В вашем сообщении не найдёно количество начисленных (отнятых) баллов')
       else: 
-        await update.message.reply_text(f"{from_who_reply} заработал баллов. \nБаланс: {scores[from_who_reply]} баллов!")
+        await update.message.reply_text(f"@{username_from_who_reply} заработал баллов. \nБаланс: {scores[from_who_reply]} баллов!")
         with open(scores_filename, 'w') as f:
           f.writelines(f"{item},{scores[item]}\n" for item in scores)
     else:
@@ -79,7 +82,7 @@ async def count_points(update: Updater, context: CallbackContext):
       if (scoring(message, fstring, from_who_reply, scores) == False):
         await update.message.reply_text('Ошибка! В вашем сообщении не найдёно количество начисленных (отнятых) баллов')
       else: 
-        await update.message.reply_text(f"{from_who_reply} наказан и теряет баллы. \nБаланс: {scores[from_who_reply]} баллов!")
+        await update.message.reply_text(f"@{username_from_who_reply} наказан и теряет баллы. \nБаланс: {scores[from_who_reply]} баллов!")
         with open(scores_filename, 'w') as f:
           f.writelines(f"{item},{scores[item]}\n" for item in scores)
     else:
@@ -99,7 +102,8 @@ async def top(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True) # Sorted users by points
     top_players = sorted_scores[:count]  # Get only 'counts' best users
     message = f"Топ {count} игроков:\n"
-    for i, (username, points) in enumerate(top_players, start=1):
+    for i, (user, points) in enumerate(top_players, start=1):
+      username = user.split('@')[1]
       message += f"{i}. @{username}: {points} баллов\n"
     await update.message.reply_text(message)
   except (IndexError, ValueError):
@@ -107,13 +111,51 @@ async def top(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Function for postin top users (example, /top <count>)
 async def reset_points(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
-  if (update.message.from_user.id in administrators):
-    scores = {}
+  if (update.message.from_user.is_bot == False):
+    who_reset = update.message.from_user.id
+  else:
+    who_reset = update.message.sender_chat.id
+  if (who_reset in administrators):
+    scores.clear()
     f = open(scores_filename, 'w')
     f.close()
     await update.effective_message.reply_text("Все баллы были сброшены")
   else:
     await update.effective_message.reply_text("Только администраторы могут сбрасывать баллы")
+
+
+# Need comments
+def extract_status_change(chat_member_update: ChatMemberUpdated) -> Optional[Tuple[bool, bool]]:
+    status_change = chat_member_update.difference().get("status")
+    member_id = chat_member_update.new_chat_member.user.id
+
+    if status_change is None:
+        return None
+
+    old_status, new_status = status_change
+    if (old_status in [ChatMember.MEMBER,ChatMember.LEFT,ChatMember.BANNED]) and (new_status in [ChatMember.OWNER,ChatMember.ADMINISTRATOR]):
+      administrators[member_id] = new_status.lower()
+      with open(admins_filename, 'w+') as f:
+        f.writelines(f"{item},{administrators[item]}\n" for item in administrators)
+      print(administrators)
+      return f"Администратор id={member_id} добавлен в список администраторов канала"
+    
+    if (new_status in [ChatMember.MEMBER,ChatMember.LEFT,ChatMember.BANNED]) and (old_status in [ChatMember.OWNER,ChatMember.ADMINISTRATOR]):
+      del administrators[member_id]
+      with open(admins_filename, 'w+') as f:
+        f.writelines(f"{item},{administrators[item]}\n" for item in administrators)
+      print(administrators)
+      return f"Администратор id={member_id} удален из списков администраторов канала"
+
+
+async def track_chats(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Tracks the chats the bot is in."""
+    result = extract_status_change(update.chat_member)
+    if result is None:
+        return
+    print(result)
+
+
 
 def main():
   # Get main_bot token from 'token.txt'
@@ -141,7 +183,7 @@ def main():
     admins_file.close()
 
   # Get channel ID
-  response_channel_id = requests.get(f'https://api.telegram.org/bot{TOKEN}/getChat?chat_id=@{channel_username}')
+  response_channel_id = requests.get(f'https://api.telegram.org/bot{TOKEN}/getChat?chat_id=@{channel_username_test}')
   contents = json.loads(response_channel_id.text)
   # Check 'OK' answer without mistakes
   if contents['ok'] == True:
@@ -151,7 +193,7 @@ def main():
   else: return
 
   # Get administrators list of channel (Bot needed to be admin on this channel) and update admins file
-  response_admins = requests.get(f'https://api.telegram.org/bot{TOKEN}/getChatAdministrators?chat_id=@{channel_username}')
+  response_admins = requests.get(f'https://api.telegram.org/bot{TOKEN}/getChatAdministrators?chat_id=@{channel_username_test}')
   # print(response_admins.text)
   contents = json.loads(response_admins.text)
   # Check 'OK' answer without mistakes
@@ -174,8 +216,11 @@ def main():
   # Forward messages listener for parsing channel post
   application.add_handler(MessageHandler(Filters.ALL, check_new_post))
 
+  # Forward update status of chat member
+  application.add_handler(ChatMemberHandler(track_chats, ChatMemberHandler.CHAT_MEMBER, channel_id))
+
   # Polling bot
-  application.run_polling()
+  application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main()
