@@ -137,14 +137,12 @@ def extract_status_change(chat_member_update: ChatMemberUpdated) -> Optional[Tup
       administrators[member_id] = new_status.lower()
       with open(admins_filename, 'w+') as f:
         f.writelines(f"{item},{administrators[item]}\n" for item in administrators)
-      print(administrators)
       return f"Администратор id={member_id} добавлен в список администраторов канала"
     
     if (new_status in [ChatMember.MEMBER,ChatMember.LEFT,ChatMember.BANNED]) and (old_status in [ChatMember.OWNER,ChatMember.ADMINISTRATOR]):
       del administrators[member_id]
       with open(admins_filename, 'w+') as f:
         f.writelines(f"{item},{administrators[item]}\n" for item in administrators)
-      print(administrators)
       return f"Администратор id={member_id} удален из списков администраторов канала"
 
 
