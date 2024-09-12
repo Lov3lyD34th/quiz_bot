@@ -1,3 +1,4 @@
+import re
 from typing import Optional, Tuple
 from telegram import ChatMember, ChatMemberUpdated, Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, ApplicationBuilder, CallbackContext, ContextTypes, ChatMemberHandler
@@ -22,27 +23,29 @@ posts = {}
 administrators = {}
 my_queue = Queue()
 
-# Function for check new post and future parsing (Функция для проверки нового поста и дальнейшего парсинга)
-async def check_new_post(update: Updater, context: CallbackContext):
-  if (update.channel_post) :
-    print("It's channel post\n")
+# Function for checking if admin increase/decrease points
+def scoring2(text):
+  # Counter for increase/decrease points 
+  count = 0
+  start_position = 0
+  points_result = 0
+  # Take all numbers on message
+  matches = re.findall(r"\d+", text)
+  for numbers in matches:
+    if (text[text.find(numbers, start_position) - 1] == '-') or (text[text.find(numbers, start_position) - 1] == '+'):
+      count += 1
+      points_result = points_result + int(text[text.find(numbers, start_position) -1] + numbers)
+      start_position = text.find(numbers) + 1
+  if count != 0: return points_result
+  else: return False
+
+# Function for update or create note for user points (Функция для проверки есть ли запись пользователя в базе)
+def check_user_in_scores(user, scores_list, points):
+  if user in scores_list:
+    scores_list[user] += points
   else:
-    return
-
-# Function for scoring points (Функция начисления баллов)
-def scoring(points, trash, user, scores_list):
-  try:
-    # Delete 'trash' from message (Вычленяем очки из сообщения администратора)
-    points = int(points.lower().strip(trash))
-    # Update or create note for user points (Обновляем или создаем запись для пользователя)
-    if user in scores_list:
-      scores_list[user] += points
-    else:
-      scores_list[user] = points
-    return scores_list
-  except (IndexError, ValueError):
-    return False
-
+    scores_list[user] = points
+  return scores_list
 
 # Function for check increase/decrease points (need to fix) (Функция для поиска начисления/)
 async def count_points(update: Updater, context: CallbackContext):
@@ -53,40 +56,27 @@ async def count_points(update: Updater, context: CallbackContext):
   else:
     who_reply = update.message.sender_chat.id
   # Whose message has been replied (Чье сообщение было отвечено)
-  if (update.message.reply_to_message.from_user.is_bot == False):
+  if (update.message.reply_to_message.from_user.is_bot == False) and (update.message.reply_to_message.sender_chat.username != channel_username_test):
     from_who_reply = str(update.message.reply_to_message.from_user.id) + '@' + str(update.message.reply_to_message.from_user.username)
   else: from_who_reply = str(update.message.reply_to_message.sender_chat.id) + '@' + str(update.message.reply_to_message.sender_chat.username)
   # Parse text in reply message (Текст сообщения в ответе)
   message = update.message.text
   #Take username for display in message
   username_from_who_reply = from_who_reply.split('@')[1]
-  # Find increase points message (Поиск сообщения о начислении очков)
-  if ('Верно!' in message):
-    # Handling of increase points message if who_reply in admin list (Обработка начисления очков, если пользователь администратор)
-    if (who_reply in administrators):
-      fstring= 'верно!баллов ' #formatted string for clean 'trash' symbols and leave only points (Форматированная строка для последующей очистки сообщения от "мусора")
-      if (scoring(message, fstring, from_who_reply, scores) == False):
-        await update.message.reply_text('Ошибка! В вашем сообщении не найдёно количество начисленных (отнятых) баллов')
-      else: 
-        await update.message.reply_text(f"@{username_from_who_reply} заработал баллов. \nБаланс: {scores[from_who_reply]} баллов!")
+  if (who_reply in administrators) and (username_from_who_reply != channel_username_test):
+    result_point = scoring2(message)
+    if (result_point == False) and (str(result_point) != 0):
+      return
+    else:
+      check_user_in_scores(from_who_reply, scores, result_point)
+      if (result_point >= 0):
+        await update.message.reply_text(f"@{username_from_who_reply} заработал {result_point} балл(ов). \nБаланс: {scores[from_who_reply]} балл(ов)!")
         with open(scores_filename, 'w') as f:
           f.writelines(f"{item},{scores[item]}\n" for item in scores)
-    else:
-      await update.message.reply_text("Только администраторы могут начислять баллы")
-  # Found decrease point message (Поиск сообщения о вычитании очков)
-  if ('Читер!' in message):
-    # Handling of decrease points message if who_reply in admin list (Обработка сообщения вычитания очков, если пользователь администратор)
-    if (who_reply in administrators):
-      fstring= 'читер!баллов ' #formatted string for clean 'trash' symbols and leave only points (форматированная строка для последующей очистки сообщения от "мусора")
-      scoring(message, fstring, from_who_reply, scores)
-      if (scoring(message, fstring, from_who_reply, scores) == False):
-        await update.message.reply_text('Ошибка! В вашем сообщении не найдёно количество начисленных (отнятых) баллов')
-      else: 
-        await update.message.reply_text(f"@{username_from_who_reply} наказан и теряет баллы. \nБаланс: {scores[from_who_reply]} баллов!")
+      else:
+        await update.message.reply_text(f"@{username_from_who_reply} наказан на {result_point} балл(ов). \nБаланс: {scores[from_who_reply]} балл(ов)!")
         with open(scores_filename, 'w') as f:
           f.writelines(f"{item},{scores[item]}\n" for item in scores)
-    else:
-      await update.message.reply_text("Только администраторы могут наказывать читеров")
 
 # Function for posting top users (example, /top <count>)
 async def top(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -210,9 +200,6 @@ def main():
 
   # Reply messages listener for counting points
   application.add_handler(MessageHandler(Filters.REPLY, count_points))
-
-  # Forward messages listener for parsing channel post
-  application.add_handler(MessageHandler(Filters.ALL, check_new_post))
 
   # Forward update status of chat member
   application.add_handler(ChatMemberHandler(track_chats, ChatMemberHandler.CHAT_MEMBER, channel_id))
