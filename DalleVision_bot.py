@@ -9,7 +9,7 @@ import requests
 import json
 
 # Name of files which bot uses (Названия файлов, используемые ботом)
-scores_filename = 'scores_test.txt' #Scores file (Файл, содержащий количество очков)
+scores_filename = 'scores.txt' #Scores file (Файл, содержащий количество очков)
 admins_filename = 'admins.txt' #Administrator list file (Файл, содержащий список администраторов)
 # token_test_filename = 'token_test.txt' Test bot token file (optional) (Файл, содержащий токен тестового бота, не обязательный)
 token_filename = 'token.txt' #Bot token file (Файл, содержащий токен основного бота)
@@ -56,14 +56,14 @@ async def count_points(update: Updater, context: CallbackContext):
   else:
     who_reply = update.message.sender_chat.id
   # Whose message has been replied (Чье сообщение было отвечено)
-  if (update.message.reply_to_message.from_user.is_bot == False) and (update.message.reply_to_message.sender_chat.username != channel_username_test):
+  if (update.message.reply_to_message.from_user.is_bot == False) and (update.message.reply_to_message.sender_chat.username != channel_username):
     from_who_reply = str(update.message.reply_to_message.from_user.id) + '@' + str(update.message.reply_to_message.from_user.username)
   else: from_who_reply = str(update.message.reply_to_message.sender_chat.id) + '@' + str(update.message.reply_to_message.sender_chat.username)
   # Parse text in reply message (Текст сообщения в ответе)
   message = update.message.text
   #Take username for display in message
   username_from_who_reply = from_who_reply.split('@')[1]
-  if (who_reply in administrators) and (username_from_who_reply != channel_username_test):
+  if (who_reply in administrators) and (username_from_who_reply != channel_username):
     result_point = scoring2(message)
     if (result_point == False) and (str(result_point) != 0):
       return
@@ -97,7 +97,7 @@ async def top(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
       message += f"{i}. @{username}: {points} баллов\n"
     await update.message.reply_text(message)
   except (IndexError, ValueError):
-    await update.effective_message.reply_text("Используйте: /top <количество>")
+    await update.effective_message.reply_text("Ошибка\nИспользуйте: /top <количество>")
 
 # Function for postin top users (example, /top <count>)
 async def reset_points(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -171,7 +171,7 @@ def main():
     admins_file.close()
 
   # Get channel ID
-  response_channel_id = requests.get(f'https://api.telegram.org/bot{TOKEN}/getChat?chat_id=@{channel_username_test}')
+  response_channel_id = requests.get(f'https://api.telegram.org/bot{TOKEN}/getChat?chat_id=@{channel_username}')
   contents = json.loads(response_channel_id.text)
   # Check 'OK' answer without mistakes
   if contents['ok'] == True:
@@ -181,7 +181,7 @@ def main():
   else: return
 
   # Get administrators list of channel (Bot needed to be admin on this channel) and update admins file
-  response_admins = requests.get(f'https://api.telegram.org/bot{TOKEN}/getChatAdministrators?chat_id=@{channel_username_test}')
+  response_admins = requests.get(f'https://api.telegram.org/bot{TOKEN}/getChatAdministrators?chat_id=@{channel_username}')
   # print(response_admins.text)
   contents = json.loads(response_admins.text)
   # Check 'OK' answer without mistakes
