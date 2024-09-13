@@ -57,7 +57,7 @@ async def count_points(update: Updater, context: CallbackContext):
     who_reply = update.message.sender_chat.id
   # Whose message has been replied (Чье сообщение было отвечено)
   if (update.message.reply_to_message.from_user.is_bot == False) and (update.message.reply_to_message.sender_chat.username != channel_username):
-    from_who_reply = str(update.message.reply_to_message.from_user.id) + '@' + str(update.message.reply_to_message.from_user.username)
+    from_who_reply = str(update.message.reply_to_message.from_user.id) + '@' + str(update.message.reply_to_message.from_user.username) + '@' + str(update.message.reply_to_message.from_user.first_name)
   else: from_who_reply = str(update.message.reply_to_message.sender_chat.id) + '@' + str(update.message.reply_to_message.sender_chat.username)
   # Parse text in reply message (Текст сообщения в ответе)
   message = update.message.text
