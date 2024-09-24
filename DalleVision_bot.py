@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import re
 from typing import Optional, Tuple
 from telegram import ChatMember, ChatMemberUpdated, Update
@@ -59,24 +61,26 @@ async def count_points(update: Updater, context: CallbackContext):
   #update.message.reply_to_message.sender_chat.username - переписать (ругается на отсутствие такого поля)
   if (update.message.reply_to_message.from_user.is_bot == False):
     from_who_reply = str(update.message.reply_to_message.from_user.id) + '@' + str(update.message.reply_to_message.from_user.username) + '@' + str(update.message.reply_to_message.from_user.first_name)
-  else: from_who_reply = str(update.message.reply_to_message.sender_chat.id) + '@' + str(update.message.reply_to_message.sender_chat.username)
+  else: from_who_reply = str(update.message.reply_to_message.sender_chat.id) + '@' + str(update.message.reply_to_message.sender_chat.username) + '@channel|bot'
   # Parse text in reply message (Текст сообщения в ответе)
   message = update.message.text
   #Take username for display in message
+  firstname_from_who_reply = from_who_reply.split('@')[2]
   username_from_who_reply = from_who_reply.split('@')[1]
+  id_from_who_reply = from_who_reply.split('@')[0]
   if (who_reply in administrators) and (username_from_who_reply != channel_username):
     result_point = scoring2(message)
-    if (result_point == False) and (str(result_point) != 0):
+    if (result_point == False) and (str(result_point) != '0'):
       return
     else:
       check_user_in_scores(from_who_reply, scores, result_point)
       if (result_point >= 0):
-        await update.message.reply_text(f"@{username_from_who_reply} заработал {result_point} балл(ов). \nБаланс: {scores[from_who_reply]} балл(ов)!")
-        with open(scores_filename, 'w') as f:
+        await update.message.reply_text(f"@{username_from_who_reply} ({firstname_from_who_reply}) заработал {result_point} балл(ов). \nБаланс: {scores[from_who_reply]} балл(ов)!")
+        with open(scores_filename, 'w', encoding='utf-8') as f:
           f.writelines(f"{item},{scores[item]}\n" for item in scores)
       else:
         await update.message.reply_text(f"@{username_from_who_reply} наказан на {result_point} балл(ов). \nБаланс: {scores[from_who_reply]} балл(ов)!")
-        with open(scores_filename, 'w') as f:
+        with open(scores_filename, 'w', encoding='utf-8') as f:
           f.writelines(f"{item},{scores[item]}\n" for item in scores)
 
 # Function for posting top users (example, /top <count>)
@@ -95,7 +99,8 @@ async def top(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = f"Топ {count} игроков:\n"
     for i, (user, points) in enumerate(top_players, start=1):
       username = user.split('@')[1]
-      message += f"{i}. @{username}: {points} баллов\n"
+      firstname = user.split('@')[2]
+      message += f"{i}. ({firstname}) @{username}: {points} баллов\n"
     await update.message.reply_text(message)
   except (IndexError, ValueError):
     await update.effective_message.reply_text("Ошибка\nИспользуйте: /top <количество>")
@@ -108,7 +113,7 @@ async def reset_points(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> N
     who_reset = update.message.sender_chat.id
   if (who_reset in administrators):
     scores.clear()
-    f = open(scores_filename, 'w')
+    f = open(scores_filename, 'w', encoding='utf-8')
     f.close()
     await update.effective_message.reply_text("Все баллы были сброшены")
   else:
@@ -126,13 +131,13 @@ def extract_status_change(chat_member_update: ChatMemberUpdated) -> Optional[Tup
     old_status, new_status = status_change
     if (old_status in [ChatMember.MEMBER,ChatMember.LEFT,ChatMember.BANNED]) and (new_status in [ChatMember.OWNER,ChatMember.ADMINISTRATOR]):
       administrators[member_id] = new_status.lower()
-      with open(admins_filename, 'w+') as f:
+      with open(admins_filename, 'w+', encoding='utf-8') as f:
         f.writelines(f"{item},{administrators[item]}\n" for item in administrators)
       return f"Администратор id={member_id} добавлен в список администраторов канала"
     
     if (new_status in [ChatMember.MEMBER,ChatMember.LEFT,ChatMember.BANNED]) and (old_status in [ChatMember.OWNER,ChatMember.ADMINISTRATOR]):
       del administrators[member_id]
-      with open(admins_filename, 'w+') as f:
+      with open(admins_filename, 'w+', encoding='utf-8') as f:
         f.writelines(f"{item},{administrators[item]}\n" for item in administrators)
       return f"Администратор id={member_id} удален из списков администраторов канала"
 
@@ -147,28 +152,29 @@ async def track_chats(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 def main():
+
   # Get main_bot token from 'token.txt'
   TOKEN = open(token_filename, "r").readline().rstrip()
   application = ApplicationBuilder().token(TOKEN).build()
 
   # Reading or creating points file
   if (os.path.exists(scores_filename)):
-    with open(scores_filename, 'r') as scores_file:
+    with open(scores_filename, 'r', encoding='utf-8') as scores_file:
       for line in scores_file:
         key, value = line.strip('\n').split(',')
         scores[key] = int(value)
   else: 
-    scores_file = open(scores_filename, "w+")
+    scores_file = open(scores_filename, "w+", encoding='utf-8')
     scores_file.close()
 
   # Reading or creating admins file
   if (os.path.exists(admins_filename)):
-    with open(admins_filename, 'r') as admins_file:
+    with open(admins_filename, 'r', encoding='utf-8') as admins_file:
       for line in admins_file:
         key, value = line.strip('\n').split(',')
         administrators[key] = value
   else: 
-    admins_file = open(admins_filename, "w+")
+    admins_file = open(admins_filename, "w+", encoding='utf-8')
     admins_file.close()
 
   # Get channel ID
@@ -189,7 +195,7 @@ def main():
   if contents['ok'] == True:
     for admin in contents['result']:
       administrators[admin['user']['id']] = admin['status']
-    with open(admins_filename, 'w+') as f:
+    with open(admins_filename, 'w+', encoding='utf-8') as f:
       f.writelines(f"{item},{administrators[item]}\n" for item in administrators)
   else: return
 
