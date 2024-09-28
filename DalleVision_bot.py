@@ -84,7 +84,7 @@ async def count_points(update: Updater, context: CallbackContext):
           f.writelines(f"{item},{scores[item]}\n" for item in scores)
       else:
         reply_message = f'<a href="tg://user?id={id_from_who_reply}">{firstname_from_who_reply}</a> наказан(а) на {result_point} балл(ов). \nБаланс: {scores[from_who_reply]} балл(ов)!'
-        await update.message.reply_text(reply_message, parse_mode='MarkdownV2')
+        await update.message.reply_text(reply_message, parse_mode='HTML')
         with open(scores_filename, 'w', encoding='utf-8') as f:
           f.writelines(f"{item},{scores[item]}\n" for item in scores)
 
