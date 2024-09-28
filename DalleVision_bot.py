@@ -33,6 +33,8 @@ def scoring2(text):
   points_result = 0
   # Take all numbers on message
   matches = re.findall(r"\d+", text)
+  # print(type(matches))
+  if (matches == []) : return False
   for numbers in matches:
     if (text[text.find(numbers, start_position) - 1] == '-') or (text[text.find(numbers, start_position) - 1] == '+'):
       count += 1
@@ -64,6 +66,7 @@ async def count_points(update: Updater, context: CallbackContext):
   else: from_who_reply = str(update.message.reply_to_message.sender_chat.id) + '@' + str(update.message.reply_to_message.sender_chat.username) + '@channel|bot'
   # Parse text in reply message (Текст сообщения в ответе)
   message = update.message.text
+  if (message == None): return
   #Take username for display in message
   firstname_from_who_reply = from_who_reply.split('@')[2]
   username_from_who_reply = from_who_reply.split('@')[1]
@@ -75,11 +78,13 @@ async def count_points(update: Updater, context: CallbackContext):
     else:
       check_user_in_scores(from_who_reply, scores, result_point)
       if (result_point >= 0):
-        await update.message.reply_text(f"@{username_from_who_reply} ({firstname_from_who_reply}) заработал {result_point} балл(ов). \nБаланс: {scores[from_who_reply]} балл(ов)!")
+        reply_message = f'<a href="tg://user?id={id_from_who_reply}">{firstname_from_who_reply}</a> заработал(а) {result_point} балл(ов). \nБаланс: {scores[from_who_reply]} балл(ов)!'
+        await update.message.reply_text(reply_message, parse_mode='HTML')
         with open(scores_filename, 'w', encoding='utf-8') as f:
           f.writelines(f"{item},{scores[item]}\n" for item in scores)
       else:
-        await update.message.reply_text(f"@{username_from_who_reply} наказан на {result_point} балл(ов). \nБаланс: {scores[from_who_reply]} балл(ов)!")
+        reply_message = f'<a href="tg://user?id={id_from_who_reply}">{firstname_from_who_reply}</a> наказан(а) на {result_point} балл(ов). \nБаланс: {scores[from_who_reply]} балл(ов)!'
+        await update.message.reply_text(reply_message, parse_mode='MarkdownV2')
         with open(scores_filename, 'w', encoding='utf-8') as f:
           f.writelines(f"{item},{scores[item]}\n" for item in scores)
 
@@ -97,11 +102,15 @@ async def top(update: Updater, context: ContextTypes.DEFAULT_TYPE) -> None:
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True) # Sorted users by points
     top_players = sorted_scores[:count]  # Get only 'counts' best users
     message = f"Топ {count} игроков:\n"
-    for i, (user, points) in enumerate(top_players, start=1):
+    for position, (user, points) in enumerate(top_players, start=1):
+      userid = user.split('@')[0]
       username = user.split('@')[1]
       firstname = user.split('@')[2]
-      message += f"{i}. ({firstname}) @{username}: {points} баллов\n"
-    await update.message.reply_text(message)
+      if (username != 'None'):
+        message += f'{position}. <a href="tg://user?id={userid}">{firstname} (@{username})</a>: {points} баллов\n'
+      else:
+        message += f"{position}. {firstname}: {points} баллов\n"
+    await update.message.reply_text(message, parse_mode='HTML')
   except (IndexError, ValueError):
     await update.effective_message.reply_text("Ошибка\nИспользуйте: /top <количество>")
 
